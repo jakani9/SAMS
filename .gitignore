@@ -1,0 +1,10 @@
+# 入退室記録のエクスポート（個人データ）
+*.csv
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+*.log
+
+# Python（起動.bat 用・任意）
+.python-version

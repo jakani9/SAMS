@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>学習塾 入退室管理</title>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+      color: white;
+      padding: 1.25rem 1.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    header h1 { font-size: 1.5rem; font-weight: 700; }
+    header p { opacity: 0.9; font-size: 0.9rem; margin-top: 0.25rem; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+
+    nav.tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    nav.tabs button {
+      border: none;
+      background: var(--surface);
+      color: var(--muted);
+      padding: 0.65rem 1.25rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    nav.tabs button.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    nav.tabs button:hover:not(.active) { background: #e2e8f0; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 800px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .camera-wrap {
+      position: relative;
+      background: #0f172a;
+      border-radius: var(--radius);
+      overflow: hidden;
+      aspect-ratio: 4/3;
+    }
+
+    #video, #scanCanvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    #scanCanvas { display: none; }
+
+    .camera-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .scan-frame {
+      width: 60%;
+      max-width: 220px;
+      aspect-ratio: 1;
+      border: 3px solid rgba(255,255,255,0.8);
+      border-radius: 12px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.35);
+    }
+
+    .status-bar {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .status-bar.idle { background: #f1f5f9; color: var(--muted); }
+    .status-bar.scanning { background: #dbeafe; color: var(--primary-dark); }
+    .status-bar.success { background: #d1fae5; color: var(--success); }
+    .status-bar.error { background: #fee2e2; color: var(--danger); }
+
+    .flash-result {
+      margin-top: 1rem;
+      padding: 1.25rem;
+      border-radius: var(--radius);
+      text-align: center;
+      animation: pop 0.35s ease;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.95); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .flash-result.arrival {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: white;
+    }
+
+    .flash-result.departure {
+      background: linear-gradient(135deg, #d97706, #f59e0b);
+      color: white;
+    }
+
+    .flash-result .big { font-size: 2rem; font-weight: 800; }
+    .flash-result .sub { font-size: 1.1rem; opacity: 0.95; margin-top: 0.25rem; }
+
+    .controls { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem; }
+
+    button.btn {
+      border: none;
+      padding: 0.6rem 1.1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    button.btn-primary { background: var(--primary); color: white; }
+    button.btn-primary:hover { background: var(--primary-dark); }
+    button.btn-secondary { background: #e2e8f0; color: var(--text); }
+    button.btn-secondary:hover { background: #cbd5e1; }
+    button.btn-danger { background: #fee2e2; color: var(--danger); }
+    button.btn-danger:hover { background: #fecaca; }
+    button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.btn-sm { padding: 0.35rem 0.65rem; font-size: 0.8rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      padding: 0.65rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th { background: #f8fafc; font-weight: 600; color: var(--muted); font-size: 0.8rem; }
+
+    tr:hover td { background: #f8fafc; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .badge.arrival { background: #d1fae5; color: var(--success); }
+    .badge.departure { background: #fef3c7; color: var(--warning); }
+    .badge.present { background: #d1fae5; color: var(--success); }
+    .badge.left { background: #fef3c7; color: var(--warning); }
+    .badge.absent { background: #f1f5f9; color: var(--muted); }
+
+    tr.row-present td { background: #f0fdf4; }
+    tr.row-present:hover td { background: #dcfce7; }
+
+    .form-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    input, select {
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      flex: 1;
+      min-width: 120px;
+    }
+
+    input:focus, select:focus {
+      outline: 2px solid #93c5fd;
+      border-color: var(--primary);
+    }
+
+    .student-list { max-height: 400px; overflow-y: auto; }
+
+    .hint {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      background: #f8fafc;
+      border-radius: 8px;
+      border-left: 3px solid var(--primary);
+    }
+
+    .stats {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .stat-box {
+      flex: 1;
+      min-width: 120px;
+      background: #f8fafc;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .stat-box .num { font-size: 1.5rem; font-weight: 800; color: var(--primary); }
+    .stat-box .label { font-size: 0.8rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>学習塾 入退室管理</h1>
+    <p>QRコードをカメラにかざすと、来塾・帰宅を自動判定して記録します</p>
+  </header>
+
+  <div class="container">
+    <nav class="tabs no-print">
+      <button class="tab-btn active" data-tab="scan">スキャン</button>
+      <button class="tab-btn" data-tab="students">生徒管理</button>
+      <button class="tab-btn" data-tab="records">記録・CSV</button>
+    </nav>
+
+    <!-- スキャン -->
+    <section id="panel-scan" class="panel active">
+      <div class="grid-2">
+        <div class="card">
+          <h2>カメラ</h2>
+          <div class="camera-wrap">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="scanCanvas"></canvas>
+            <div class="camera-overlay"><div class="scan-frame"></div></div>
+          </div>
+          <div id="scanStatus" class="status-bar idle">カメラを開始してください</div>
+          <div class="controls no-print">
+            <button id="btnStartCamera" class="btn btn-primary">カメラ開始</button>
+            <button id="btnStopCamera" class="btn btn-secondary" disabled>カメラ停止</button>
+          </div>
+          <div id="flashResult"></div>
+        </div>
+
+        <div class="card">
+          <h2>本日の直近記録</h2>
+          <div class="stats">
+            <div class="stat-box">
+              <div class="num" id="todayArrivalCount">0</div>
+              <div class="label">来塾</div>
+            </div>
+            <div class="stat-box">
+              <div class="num" id="todayDepartureCount">0</div>
+              <div class="label">帰宅</div>
+            </div>
+          </div>
+          <div style="max-height: 420px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr><th>時刻</th><th>生徒</th><th>区分</th></tr>
+              </thead>
+              <tbody id="recentRecords"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 生徒管理 -->
+    <section id="panel-students" class="panel">
+      <div class="card">
+        <h2>本日の滞在状況</h2>
+        <div class="stats">
+          <div class="stat-box">
+            <div class="num" id="stayPresentCount">0</div>
+            <div class="label">在塾中</div>
+          </div>
+          <div class="stat-box">
+            <div class="num" id="stayLeftCount">0</div>
+            <div class="label">帰宅済み</div>
+          </div>
+          <div class="stat-box">
+            <div class="num" id="stayAbsentCount">0</div>
+            <div class="label">未来塾</div>
+          </div>
+        </div>
+        <div class="form-row no-print">
+          <select id="filterStayStatus">
+            <option value="">すべて表示</option>
+            <option value="present">在塾中のみ</option>
+            <option value="left">帰宅済みのみ</option>
+            <option value="absent">未来塾のみ</option>
+          </select>
+        </div>
+        <div class="student-list">
+          <table>
+            <thead>
+              <tr>
+                <th>生徒ID</th>
+                <th>氏名</th>
+                <th>滞在状況</th>
+                <th>最終記録</th>
+                <th class="no-print">操作</th>
+              </tr>
+            </thead>
+            <tbody id="studentTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 1.5rem;">
+        <h2>生徒の登録</h2>
+        <div class="form-row no-print">
+          <input id="inputStudentId" type="text" placeholder="生徒ID（例: S001）" maxlength="20">
+          <input id="inputStudentName" type="text" placeholder="氏名（例: 山田 太郎）" maxlength="50">
+          <button id="btnAddStudent" class="btn btn-primary">追加</button>
+        </div>
+        <div class="hint">
+          QRコードの中身は<strong>生徒IDのみ</strong>です。別途作成したQRコードを生徒に配布してください。
+        </div>
+      </div>
+    </section>
+
+    <!-- 記録 -->
+    <section id="panel-records" class="panel">
+      <div class="card">
+        <h2>入退室記録</h2>
+        <div class="form-row no-print">
+          <input id="filterDate" type="date">
+          <select id="filterType">
+            <option value="">すべて</option>
+            <option value="来塾">来塾のみ</option>
+            <option value="帰宅">帰宅のみ</option>
+          </select>
+          <button id="btnExportCsv" class="btn btn-primary">CSVダウンロード</button>
+          <button id="btnAutoCsv" class="btn btn-secondary">CSV自動保存を設定</button>
+        </div>
+        <div id="autoCsvStatus" class="hint no-print" style="display:none;"></div>
+        <div class="hint no-print">
+          <strong>Googleスプレッドシート連携：</strong>
+          CSVをダウンロードし、スプレッドシートで「ファイル → インポート」から取り込めます。
+          「CSV自動保存」を設定すると、スキャンのたびに同じCSVファイルへ追記保存できます（Chrome / Edge 推奨）。
+        </div>
+        <div style="max-height: 500px; overflow-y: auto; margin-top: 1rem;">
+          <table>
+            <thead>
+              <tr>
+                <th>日付</th><th>時刻</th><th>生徒ID</th><th>区分</th>
+              </tr>
+            </thead>
+            <tbody id="allRecords"></tbody>
+          </table>
+        </div>
+        <div class="controls no-print" style="margin-top: 1rem;">
+          <button id="btnClearRecords" class="btn btn-danger">全記録を削除</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script>
+    const STORAGE_STUDENTS = 'juku_students_v1';
+    const STORAGE_RECORDS = 'juku_records_v1';
+    const SCAN_COOLDOWN_MS = 3000;
+
+    let students = [];
+    let records = [];
+    let videoStream = null;
+    let scanInterval = null;
+    let lastScan = { id: '', time: 0 };
+    let csvFileHandle = null;
+
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => document.querySelectorAll(sel);
+
+    function loadData() {
+      try {
+        students = JSON.parse(localStorage.getItem(STORAGE_STUDENTS) || '[]')
+          .map(s => ({
+            id: String(s.id || '').trim(),
+            name: String(s.name || '').trim()
+          }))
+          .filter(s => s.id);
+        records = JSON.parse(localStorage.getItem(STORAGE_RECORDS) || '[]')
+          .map(r => ({
+            date: r.date,
+            time: r.time,
+            studentId: r.studentId,
+            type: r.type,
+            timestamp: r.timestamp
+          }));
+      } catch {
+        students = [];
+        records = [];
+      }
+    }
+
+    function saveStudents() {
+      localStorage.setItem(STORAGE_STUDENTS, JSON.stringify(students));
+    }
+
+    function saveRecords() {
+      localStorage.setItem(STORAGE_RECORDS, JSON.stringify(records));
+    }
+
+    function todayStr() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function nowTimeStr() {
+      const d = new Date();
+      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    }
+
+    function findStudent(id) {
+      return students.find(s => s.id === id.trim());
+    }
+
+    function isRegistered(id) {
+      return Boolean(findStudent(id));
+    }
+
+    function getStudentName(id) {
+      const s = findStudent(id);
+      return s ? s.name : '';
+    }
+
+    function getStudentLabel(id) {
+      const name = getStudentName(id);
+      if (name) return name;
+      return isRegistered(id) ? id : `${id}（未登録）`;
+    }
+
+    function countTodayScans(studentId, date) {
+      return records.filter(r => r.studentId === studentId && r.date === date).length;
+    }
+
+    function determineType(studentId, date) {
+      const count = countTodayScans(studentId, date);
+      return count % 2 === 0 ? '来塾' : '帰宅';
+    }
+
+    function getStudentStayStatus(studentId, date = todayStr()) {
+      const todayRecords = records
+        .filter(r => r.studentId === studentId && r.date === date)
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      if (todayRecords.length === 0) {
+        return { status: 'absent', label: '未来塾', lastRecord: null };
+      }
+
+      const last = todayRecords[0];
+      if (last.type === '来塾') {
+        return { status: 'present', label: '在塾中', lastRecord: last };
+      }
+      return { status: 'left', label: '帰宅済み', lastRecord: last };
+    }
+
+    function addRecord(studentId) {
+      const id = studentId.trim();
+      if (!id) return null;
+
+      const now = Date.now();
+      if (lastScan.id === id && now - lastScan.time < SCAN_COOLDOWN_MS) {
+        return null;
+      }
+      lastScan = { id, time: now };
+
+      const date = todayStr();
+      const time = nowTimeStr();
+      const type = determineType(id, date);
+
+      const record = { date, time, studentId: id, type, timestamp: now };
+      records.unshift(record);
+      saveRecords();
+
+      appendToCsvFile(record);
+      updateUI();
+      showFlashResult(record);
+      return record;
+    }
+
+    function showFlashResult(record) {
+      const el = $('#flashResult');
+      const isArrival = record.type === '来塾';
+      el.innerHTML = `
+        <div class="flash-result ${isArrival ? 'arrival' : 'departure'}">
+          <div class="big">${record.type}</div>
+          <div class="sub">${escapeHtml(getStudentLabel(record.studentId))}</div>
+          <div class="sub">${escapeHtml(record.studentId)} · ${record.time}</div>
+        </div>`;
+      setTimeout(() => { el.innerHTML = ''; }, 4000);
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function setScanStatus(text, cls) {
+      const el = $('#scanStatus');
+      el.textContent = text;
+      el.className = 'status-bar ' + cls;
+    }
+
+    async function startCamera() {
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        const video = $('#video');
+        video.srcObject = videoStream;
+        await video.play();
+
+        $('#btnStartCamera').disabled = true;
+        $('#btnStopCamera').disabled = false;
+        setScanStatus('QRコードをかざしてください', 'scanning');
+        startScanLoop();
+      } catch (err) {
+        setScanStatus('カメラを起動できません: ' + err.message, 'error');
+      }
+    }
+
+    function stopCamera() {
+      if (scanInterval) {
+        clearInterval(scanInterval);
+        scanInterval = null;
+      }
+      if (videoStream) {
+        videoStream.getTracks().forEach(t => t.stop());
+        videoStream = null;
+      }
+      $('#video').srcObject = null;
+      $('#btnStartCamera').disabled = false;
+      $('#btnStopCamera').disabled = true;
+      setScanStatus('カメラを停止しました', 'idle');
+    }
+
+    let barcodeDetector = null;
+
+    async function initDetector() {
+      if ('BarcodeDetector' in window) {
+        try {
+          barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+          return;
+        } catch { /* fallback to jsQR */ }
+      }
+      barcodeDetector = null;
+    }
+
+    function startScanLoop() {
+      if (scanInterval) clearInterval(scanInterval);
+      const video = $('#video');
+      const canvas = $('#scanCanvas');
+      const ctx = canvas.getContext('2d');
+
+      scanInterval = setInterval(async () => {
+        if (!videoStream || video.readyState !== video.HAVE_ENOUGH_DATA) return;
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+
+        let text = null;
+
+        if (barcodeDetector) {
+          try {
+            const codes = await barcodeDetector.detect(canvas);
+            if (codes.length > 0) text = codes[0].rawValue;
+          } catch { /* ignore */ }
+        }
+
+        if (!text && typeof jsQR !== 'undefined') {
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) text = code.data;
+        }
+
+        if (text) {
+          const id = text.trim();
+          if (id) {
+            const result = addRecord(id);
+            if (result) {
+              setScanStatus(`${result.type}: ${getStudentLabel(result.studentId)}`, 'success');
+              setTimeout(() => setScanStatus('QRコードをかざしてください', 'scanning'), 2000);
+            }
+          }
+        }
+      }, 300);
+    }
+
+    function renderRecentRecords() {
+      const tbody = $('#recentRecords');
+      const today = todayStr();
+      const todayRecords = records.filter(r => r.date === today).slice(0, 20);
+
+      $('#todayArrivalCount').textContent = todayRecords.filter(r => r.type === '来塾').length;
+      $('#todayDepartureCount').textContent = todayRecords.filter(r => r.type === '帰宅').length;
+
+      if (todayRecords.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="color:var(--muted);">本日の記録はありません</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = todayRecords.map(r => `
+        <tr>
+          <td>${r.time}</td>
+          <td>${escapeHtml(getStudentLabel(r.studentId))}</td>
+          <td><span class="badge ${r.type === '来塾' ? 'arrival' : 'departure'}">${r.type}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderAllRecords() {
+      const tbody = $('#allRecords');
+      const dateFilter = $('#filterDate').value;
+      const typeFilter = $('#filterType').value;
+
+      let filtered = [...records];
+      if (dateFilter) filtered = filtered.filter(r => r.date === dateFilter);
+      if (typeFilter) filtered = filtered.filter(r => r.type === typeFilter);
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);">記録がありません</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(r => `
+        <tr>
+          <td>${r.date}</td>
+          <td>${r.time}</td>
+          <td>${escapeHtml(r.studentId)}</td>
+          <td><span class="badge ${r.type === '来塾' ? 'arrival' : 'departure'}">${r.type}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderStudents() {
+      const tbody = $('#studentTable');
+      const filter = $('#filterStayStatus')?.value || '';
+
+      if (students.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);">生徒が登録されていません</td></tr>';
+        $('#stayPresentCount').textContent = '0';
+        $('#stayLeftCount').textContent = '0';
+        $('#stayAbsentCount').textContent = '0';
+        return;
+      }
+
+      const rows = students.map((s, i) => {
+        const stay = getStudentStayStatus(s.id);
+        return { student: s, index: i, stay };
+      });
+
+      $('#stayPresentCount').textContent = rows.filter(r => r.stay.status === 'present').length;
+      $('#stayLeftCount').textContent = rows.filter(r => r.stay.status === 'left').length;
+      $('#stayAbsentCount').textContent = rows.filter(r => r.stay.status === 'absent').length;
+
+      const filtered = filter ? rows.filter(r => r.stay.status === filter) : rows;
+      const sorted = [...filtered].sort((a, b) => {
+        const order = { present: 0, absent: 1, left: 2 };
+        const diff = order[a.stay.status] - order[b.stay.status];
+        return diff !== 0 ? diff : a.student.id.localeCompare(b.student.id, 'ja');
+      });
+
+      if (sorted.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);">該当する生徒がいません</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = sorted.map(({ student, index, stay }) => {
+        const lastText = stay.lastRecord
+          ? `${stay.lastRecord.time} ${stay.lastRecord.type}`
+          : '—';
+        const rowClass = stay.status === 'present' ? 'row-present' : '';
+        return `
+          <tr class="${rowClass}">
+            <td>${escapeHtml(student.id)}</td>
+            <td>${escapeHtml(student.name) || '<span style="color:var(--muted);">—</span>'}</td>
+            <td><span class="badge ${stay.status}">${stay.label}</span></td>
+            <td>${lastText}</td>
+            <td class="no-print">
+              <button class="btn btn-danger btn-sm" data-del="${index}">削除</button>
+            </td>
+          </tr>`;
+      }).join('');
+
+      tbody.querySelectorAll('[data-del]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          students.splice(Number(btn.dataset.del), 1);
+          saveStudents();
+          renderStudents();
+        });
+      });
+    }
+
+    const CSV_BOM = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const textEncoder = new TextEncoder();
+
+    function recordsToCsvText(rows) {
+      const header = '日付,時刻,生徒ID,区分\n';
+      const body = rows.map(r =>
+        [r.date, r.time, r.studentId, r.type].join(',')
+      ).join('\n');
+      return header + body;
+    }
+
+    function recordToCsvLine(record) {
+      return [record.date, record.time, record.studentId, record.type].join(',') + '\n';
+    }
+
+    function encodeCsvWithBom(text) {
+      const encoded = textEncoder.encode(text);
+      const result = new Uint8Array(CSV_BOM.length + encoded.length);
+      result.set(CSV_BOM);
+      result.set(encoded, CSV_BOM.length);
+      return result;
+    }
+
+    function encodeCsvLine(text) {
+      return textEncoder.encode(text);
+    }
+
+    function downloadCsv() {
+      const bytes = encodeCsvWithBom(recordsToCsvText(records));
+      const blob = new Blob([bytes], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `入退室記録_${todayStr()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function setupAutoCsv() {
+      if (!('showSaveFilePicker' in window)) {
+        alert('このブラウザでは自動保存に対応していません。Chrome または Edge をご利用ください。');
+        return;
+      }
+
+      try {
+        csvFileHandle = await window.showSaveFilePicker({
+          suggestedName: `入退室記録_${todayStr()}.csv`,
+          types: [{ description: 'CSV', accept: { 'text/csv': ['.csv'] } }]
+        });
+
+        const writable = await csvFileHandle.createWritable();
+        await writable.write(encodeCsvWithBom(recordsToCsvText(records)));
+        await writable.close();
+
+        const status = $('#autoCsvStatus');
+        status.style.display = 'block';
+        status.innerHTML = '<strong>CSV自動保存：</strong>有効 — スキャンのたびにファイルへ追記します。';
+      } catch (err) {
+        if (err.name !== 'AbortError') alert('設定に失敗しました: ' + err.message);
+      }
+    }
+
+    async function appendToCsvFile(record) {
+      if (!csvFileHandle) return;
+      try {
+        const file = await csvFileHandle.getFile();
+        const existing = new Uint8Array(await file.arrayBuffer());
+        const lineBytes = encodeCsvLine(recordToCsvLine(record));
+        const combined = new Uint8Array(existing.length + lineBytes.length);
+        combined.set(existing);
+        combined.set(lineBytes, existing.length);
+
+        const writable = await csvFileHandle.createWritable();
+        await writable.write(combined);
+        await writable.close();
+      } catch {
+        csvFileHandle = null;
+        $('#autoCsvStatus').innerHTML = '<strong>CSV自動保存：</strong>エラー — 再度設定してください。';
+      }
+    }
+
+    function updateUI() {
+      renderRecentRecords();
+      renderAllRecords();
+      renderStudents();
+    }
+
+    function initTabs() {
+      $$('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          $$('.tab-btn').forEach(b => b.classList.remove('active'));
+          $$('.panel').forEach(p => p.classList.remove('active'));
+          btn.classList.add('active');
+          $(`#panel-${btn.dataset.tab}`).classList.add('active');
+          if (btn.dataset.tab === 'students') renderStudents();
+        });
+      });
+    }
+
+    function initEvents() {
+      $('#btnStartCamera').addEventListener('click', startCamera);
+      $('#btnStopCamera').addEventListener('click', stopCamera);
+
+      $('#btnAddStudent').addEventListener('click', () => {
+        const id = $('#inputStudentId').value.trim();
+        const name = $('#inputStudentName').value.trim();
+        if (!id || !name) {
+          alert('生徒IDと氏名を入力してください。');
+          return;
+        }
+        if (students.some(s => s.id === id)) {
+          alert('この生徒IDは既に登録されています。');
+          return;
+        }
+        students.push({ id, name });
+        saveStudents();
+        $('#inputStudentId').value = '';
+        $('#inputStudentName').value = '';
+        renderStudents();
+      });
+
+      $('#btnExportCsv').addEventListener('click', downloadCsv);
+      $('#btnAutoCsv').addEventListener('click', setupAutoCsv);
+      $('#filterDate').addEventListener('change', renderAllRecords);
+      $('#filterType').addEventListener('change', renderAllRecords);
+      $('#filterStayStatus').addEventListener('change', renderStudents);
+
+      $('#btnClearRecords').addEventListener('click', () => {
+        if (!confirm('すべての入退室記録を削除しますか？')) return;
+        records = [];
+        saveRecords();
+        updateUI();
+      });
+
+      $('#filterDate').value = todayStr();
+    }
+
+    async function init() {
+      loadData();
+      saveStudents();
+      saveRecords();
+      initTabs();
+      initEvents();
+      await initDetector();
+      renderStudents();
+      updateUI();
+    }
+
+    init();
+  </script>
+</body>
+</html>
